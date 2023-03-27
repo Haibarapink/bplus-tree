@@ -226,8 +226,6 @@ public:
       meta_page_->deserialize();
 
       disk_manager_->set_pid(meta_page_->page_count + 1);
-      LOG_DEBUG << "set next page id by meta page"
-                << disk_manager_->current_page_id();
     } else {
       char *meta_data = new char[PAGE_SIZE];
       std::memset(meta_data, 0, PAGE_SIZE);
@@ -235,7 +233,6 @@ public:
       meta_page_->id = 0;
 
       disk_manager_->set_pid(1);
-      LOG_DEBUG << "next page id " << disk_manager_->current_page_id();
     }
 
     for (size_t i = 0; i < bfp_size; ++i) {
@@ -262,8 +259,6 @@ public:
     page->dirty = 1;
     page->serliaze();
 
-    LOG_DEBUG << "alloc page " << id;
-
     meta_page_->page_count++;
     meta_page_->serliaze();
     meta_page_->dirty = 1;
@@ -277,8 +272,6 @@ public:
       assert(false);
     }
 
-    LOG_DEBUG << "fetch page " << page_id;
-
     // check if the page is in the buffer pool
     auto it = page_map_.find(page_id);
     if (it != page_map_.end()) {
@@ -291,7 +284,6 @@ public:
     size_t idx;
     bool found = replacer_.victim(idx);
     if (!found) {
-      LOG_DEBUG << "no victim found in replacer";
       return nullptr;
     }
 
@@ -326,7 +318,6 @@ public:
         it->second->dirty = 1;
       }
       if (it->second->pin_count == 0) {
-        LOG_DEBUG << "replace add " << page_id;
         replacer_.put(page_id_map_[page_id]);
       }
     }
@@ -345,7 +336,6 @@ public:
   void flush_all() {
     for (auto &page : pages_) {
       if (page->dirty == 1) {
-        LOG_DEBUG << "flush page " << page->id;
         page->serliaze();
         bool ok = disk_manager_->write_page(page->id, page->data.get());
         if (!ok) {

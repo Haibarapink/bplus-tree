@@ -182,17 +182,20 @@ public:
   }
 
   // alloc 5000 pages, and write every page with a string "hello world" +
-  // pageid, and read equal!
+  // rand_number, and read then equal
   void huge_test() {
     // test the huge data
     using namespace bplus_tree;
     const char *filename = "test_huge.db";
     BufferPool bp{filename, 4};
     // alloc 5000 pages
+    std::vector<int> rands(5000);
     for (auto i = 0; i < 5000; ++i) {
       auto p = bp.new_page();
       pure_assert(p) << "alloc page failed";
-      sprintf(p->get_data(), "hello world%ld", p->id);
+      int randn = rand();
+      sprintf(p->get_data(), "hello world%d", randn);
+      rands[i] = randn;
       pure_assert(p->id == i + 1);
       bp.unpin(p->id, true);
     }
@@ -207,7 +210,7 @@ public:
     for (auto i = 0; i < 5000; ++i) {
       auto p = bp2.fetch(i + 1);
       pure_assert(p);
-      std::string data_should_be = "hello world" + std::to_string(i + 1);
+      std::string data_should_be = "hello world" + std::to_string(rands[i]);
       PURE_TEST_EQ(std::string_view{p->get_data()}, data_should_be);
       bp2.unpin(p->id, false);
     }

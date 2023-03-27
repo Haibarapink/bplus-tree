@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <functional>
 #include <iostream>
 #include <sstream>
@@ -18,6 +19,26 @@
       << " [" << __FILE__ << ":" << __LINE__ << " [" << __func__ << "]"        \
       << "[message: "
 namespace pure_test {
+
+// Time and print format be like "usr 0.0xs sys 0.0xs", and set start and end ,
+// print the end - start
+class Timer {
+public:
+  Timer() { start_ = std::chrono::system_clock::now(); }
+  ~Timer() {}
+
+  void start() { start_ = std::chrono::system_clock::now(); }
+
+  std::string end() {
+    end_ = std::chrono::system_clock::now();
+    std::chrono::duration<double> elapsed_seconds = end_ - start_;
+    return std::to_string(elapsed_seconds.count());
+  }
+
+private:
+  std::chrono::time_point<std::chrono::system_clock> start_;
+  std::chrono::time_point<std::chrono::system_clock> end_;
+};
 
 using Func = std::function<void()>;
 
@@ -101,12 +122,16 @@ public:
     for (const auto &test_case : test_cases_) {
       std::cout << "Running test case: " << test_case.name << "...\n";
       auto fail = Reporter::fail_count_;
+      Timer t;
       test_case.func();
+      auto time_cost = t.end();
       if (fail == Reporter::fail_count_) {
         std::cout << "\033[32m[PASS] "
                   << "\033[0m" << std::endl;
+        std::cout << "Time cost: " << time_cost << "s" << std::endl;
       }
     }
+
     if (Reporter::fail_count_ == 0)
       std::cout << "All test cases passed!\n";
     else
