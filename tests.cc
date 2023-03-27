@@ -165,6 +165,7 @@ public:
     bp.flush_all();
     pure_assert(std::filesystem::file_size(filename) ==
                 5 * bplus_tree::PAGE_SIZE);
+
     bp.close();
 
     bplus_tree::BufferPool bp2{filename, 1};

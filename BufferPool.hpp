@@ -372,33 +372,7 @@ private:
   }
 
   // new a free list page
-  PageId new_free_list_page() {
-    PageId id = disk_manager_->alloc_page();
-
-    if (id == INVALID_PAGE_ID) {
-      return INVALID_PAGE_ID;
-    }
-
-    char *buf = new char[PAGE_SIZE];
-    std::memset(buf, 0, PAGE_SIZE);
-    auto new_meta_page = std::unique_ptr<BfpMetaPage>(new BfpMetaPage(buf));
-
-    if (free_list_page_ != nullptr) {
-      new_meta_page->prev = free_list_page_->id;
-      new_meta_page->next = INVALID_PAGE_ID;
-      free_list_page_->next = id;
-      free_list_page_->serliaze();
-      disk_manager_->write_page(free_list_page_->id,
-                                free_list_page_->data.get());
-    }
-
-    std::swap(free_list_page_, new_meta_page);
-
-    free_list_page_->id = id;
-    free_list_page_->data = std::unique_ptr<char>{buf};
-    free_list_page_->free_list_size = 0;
-    free_list_page_->serliaze();
-  }
+  PageId new_free_list_page() { throw std::runtime_error("unimplemented"); }
 
   ReplacerType replacer_;
   std::unique_ptr<BfpMetaPage> meta_page_ = nullptr;
