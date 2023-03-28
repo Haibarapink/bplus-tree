@@ -3,7 +3,7 @@ project(bplustree)
 set(CMAKE_CXX_STANDARD 20)
 
 # debug need DEBUG macro
-add_compile_definitions(RELEASE)
+add_compile_definitions(DEBUG)
 
 # set compile flags -g
 set(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g -ggdb")

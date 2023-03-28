@@ -13,7 +13,8 @@
 #include "Logger.hpp"
 #include "Replacer.hpp"
 
-namespace bplus_tree {
+constexpr int kInternalPageType = 1;
+constexpr int kLeafPageType = 2;
 
 template <typename T, typename E> class Result {
 public:
@@ -92,19 +93,24 @@ public:
   std::int8_t dirty = 0;
   size_t pin_count = 0;
   PageId id = INVALID_PAGE_ID;
+  int page_type = 0;
   std::unique_ptr<char> data = nullptr;
 
   bool is_dirty() const { return dirty == 1; }
   void set_dirty() { dirty = 1; }
   void clear_dirty() { dirty = 0; }
 
-  void deserialize() { std::memcpy(&id, data.get(), sizeof(PageId)); }
+  virtual void deserialize() {
+    std::memcpy(&id, data.get(), sizeof(PageId));
+    std::memcpy(&page_type, data.get() + sizeof(PageId), sizeof(int));
+  }
 
-  void serliaze() {
+  virtual void serliaze() {
     if (data == nullptr) {
       data = std::make_unique<char>(PAGE_SIZE);
     }
     std::memcpy(data.get(), &id, sizeof(PageId));
+    std::memcpy(data.get() + sizeof(PageId), &page_type, sizeof(int));
   }
 
   virtual size_t data_offset() const { return sizeof(PageId); }
@@ -121,7 +127,7 @@ class BfpMetaPage : public Page {
 public:
   BfpMetaPage(char *d) : Page(d) {}
 
-  size_t page_count = 0;
+  size_t page_count = 1;
   size_t free_list_size = 0;
   PageId next = 0;  // next free list page id
   PageId prev = -1; // prev free list page id
@@ -161,7 +167,7 @@ public:
     return id;
   }
 
-  void deserialize() {
+  void deserialize() override {
     Page::deserialize();
     std::memcpy(&page_count, data.get() + sizeof(PageId), sizeof(size_t));
     std::memcpy(&free_list_size, data.get() + sizeof(PageId) + sizeof(size_t),
@@ -175,7 +181,7 @@ public:
   }
 
   // serialize the meta page all the data
-  void serliaze() {
+  void serliaze() override {
     Page::serliaze();
     std::memcpy(data.get() + sizeof(PageId), &page_count, sizeof(size_t));
     std::memcpy(data.get() + sizeof(PageId) + sizeof(size_t), &free_list_size,
@@ -199,15 +205,6 @@ public:
   }
 };
 
-template <typename BufferPoolType>
-concept BufferPoolTraits = requires(BufferPoolType pool, Page page) {
-  pool.fetch(page.id)->Page;
-  pool.pin(page.id);
-  pool.unpin(page.id);
-  pool.flush(page.id);
-  pool.flush_all();
-};
-
 template <ReplacerTraits<size_t> ReplacerType> class DefaultBufferPool {
 public:
   friend class BufferPoolTest;
@@ -216,21 +213,27 @@ public:
 
   DefaultBufferPool(std::string_view db, size_t bfp_size) {
     PageId next_id = 1;
-    disk_manager_ = std::make_unique<DiskManager>(db, next_id);
-    if (std::filesystem::exists(db) && std::filesystem::is_regular_file(db)) {
-      char *meta_data = new char[PAGE_SIZE];
-      std::memset(meta_data, 0, PAGE_SIZE);
 
+    bool file_exists =
+        std::filesystem::exists(db) && std::filesystem::is_regular_file(db);
+    disk_manager_ = std::make_unique<DiskManager>(db, next_id);
+
+    char *meta_data = new char[PAGE_SIZE];
+    std::memset(meta_data, 0, PAGE_SIZE);
+
+    if (file_exists) {
+      // Serialize the meta page
       disk_manager_->read_page(0, meta_data);
       meta_page_ = std::make_unique<BfpMetaPage>(meta_data);
       meta_page_->deserialize();
 
       disk_manager_->set_pid(meta_page_->page_count + 1);
     } else {
-      char *meta_data = new char[PAGE_SIZE];
-      std::memset(meta_data, 0, PAGE_SIZE);
+      // Allocate a new meta page
       meta_page_ = std::make_unique<BfpMetaPage>(meta_data);
       meta_page_->id = 0;
+      meta_page_->page_count = 1;
+      meta_page_->serliaze();
 
       disk_manager_->set_pid(1);
     }
@@ -242,6 +245,11 @@ public:
       pages_.emplace_back(std::move(page));
       replacer_.put(i);
     }
+
+    LOG_DEBUG << "meta page"
+              << "page count " << meta_page_->page_count << "free list size "
+              << meta_page_->free_list_size << "next " << meta_page_->next
+              << "prev " << meta_page_->prev;
   }
 
   // ~DefaultBufferPool() { close(); }
@@ -362,6 +370,10 @@ public:
     disk_manager_->close();
   }
 
+  size_t page_count() const { return meta_page_->page_count; }
+  size_t free_page_count() const { return meta_page_->free_list_size; }
+  size_t buffer_size() const { return pages_.size(); }
+
 private:
   // @brief: change the page id and reset the dirty bit
   void change_page(Page *page, PageId page_id) {
@@ -436,4 +448,3 @@ inline void DiskManager::close() {
 }
 
 using BufferPool = DefaultBufferPool<LruReplacer<size_t>>;
-} // namespace bplus_tree

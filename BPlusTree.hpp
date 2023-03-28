@@ -1,23 +1,17 @@
 #pragma once
 #include "BufferPool.hpp"
-namespace bplus_tree {
+#include <cstdint>
 
-class InteranlPage : public Page {
+class InternalNode {
 public:
-  InteranlPage() {}
-  ~InteranlPage() {}
+  void read(Page *p) {}
+  void write(Page *p) {}
 };
 
-class LeafPage : public Page {
+class LeafNode {
 public:
-  LeafPage() {}
-  ~LeafPage() {}
+  void read(Page *p) {}
+  void write(Page *p) {}
 };
 
-template <BufferPoolTraits BufferPoolType> class BPlusTree {
-public:
-private:
-  std::unique_ptr<BufferPoolType> bfp_;
-};
-
-} // namespace bplus_tree
+class BPlusTree {};

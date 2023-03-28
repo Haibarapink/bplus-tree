@@ -57,11 +57,11 @@ void lru_test() {
 
 void disk_test() {
   // write the DiskManager test here by pure_test.
-  bplus_tree::DiskManager dsk{"test.db", 1};
-  char cur_buf[bplus_tree::PAGE_SIZE] = {0};
+  DiskManager dsk{"test.db", 1};
+  char cur_buf[PAGE_SIZE] = {0};
   PURE_TEST_FALSE_REPORT(dsk.read_page(1, cur_buf));
   PURE_TEST_TRUE_REPORT(dsk.write_page(1, cur_buf));
-  bplus_tree::PageId pgid = dsk.alloc_page();
+  PageId pgid = dsk.alloc_page();
   PURE_TEST_EQ_REPORT(pgid, 1);
 
   std::string_view hello = "hello world";
@@ -69,7 +69,7 @@ void disk_test() {
 
   PURE_TEST_TRUE_REPORT(dsk.write_page(2, cur_buf));
   // clean cur_buf
-  std::fill(cur_buf, cur_buf + bplus_tree::PAGE_SIZE, 0);
+  std::fill(cur_buf, cur_buf + PAGE_SIZE, 0);
   PURE_TEST_TRUE_REPORT(dsk.read_page(2, cur_buf));
   // cmp cur_buf with hello
   // PURE_TEST_EQ_REPORT(std::string_view{cur_buf, hello.size()}, hello);
@@ -88,7 +88,7 @@ void disk_test() {
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> dis(1, 300);
-    bplus_tree::PageId random_page_id = dis(gen);
+    PageId random_page_id = dis(gen);
     if (already_tested.find(random_page_id) != already_tested.end()) {
       continue;
     }
@@ -99,7 +99,7 @@ void disk_test() {
     // write the random string to the random page
     PURE_TEST_TRUE_REPORT(dsk.write_page(random_page_id, cur_buf));
     // clean cur_buf
-    std::fill(cur_buf, cur_buf + bplus_tree::PAGE_SIZE, 0);
+    std::fill(cur_buf, cur_buf + PAGE_SIZE, 0);
     // read the random page
     PURE_TEST_TRUE_REPORT(dsk.read_page(random_page_id, cur_buf));
     // cmp cur_buf with random_string
@@ -114,14 +114,13 @@ void disk_test() {
 }
 
 void meta_page_test() {
-  char *buf = new char[bplus_tree::PAGE_SIZE];
-  bplus_tree::BfpMetaPage meta_page{buf};
+  char *buf = new char[PAGE_SIZE];
+  BfpMetaPage meta_page{buf};
   meta_page.serliaze();
   for (auto i = 0;; ++i) {
     bool ok = meta_page.push_free_page(i);
     if (!ok) {
-      PURE_TEST_EQ(meta_page.free_list_size,
-                   bplus_tree::BfpMetaPage::MAX_FREE_LIST_SIZE);
+      PURE_TEST_EQ(meta_page.free_list_size, BfpMetaPage::MAX_FREE_LIST_SIZE);
       break;
     }
   }
@@ -133,7 +132,7 @@ void meta_page_test() {
 
 class BufferPoolTest {
 public:
-  void write2page(bplus_tree::Page *p, std::string_view s) {
+  void write2page(Page *p, std::string_view s) {
     std::copy(s.begin(), s.end(), p->get_data());
   }
 
@@ -145,9 +144,9 @@ public:
   void basic_test() {
     // test the basic api
     const char *filename = "test.db";
-    bplus_tree::BufferPool bp{filename, 4};
+    BufferPool bp{filename, 4};
     // alloc 20 pages
-    std::vector<bplus_tree::Page *> pages;
+    std::vector<Page *> pages;
     for (int i = 0; i < 20; ++i) {
       auto p = bp.new_page();
       if (!p)
@@ -163,12 +162,10 @@ public:
     }
 
     bp.flush_all();
-    pure_assert(std::filesystem::file_size(filename) ==
-                5 * bplus_tree::PAGE_SIZE);
-
+    pure_assert(std::filesystem::file_size(filename) == 5 * PAGE_SIZE);
     bp.close();
 
-    bplus_tree::BufferPool bp2{filename, 1};
+    BufferPool bp2{filename, 1};
     for (auto p : pages) {
       auto p2 = bp2.fetch(p->id);
       pure_assert(p2);
@@ -186,7 +183,6 @@ public:
   // rand_number, and read then equal
   void huge_test() {
     // test the huge data
-    using namespace bplus_tree;
     const char *filename = "test_huge.db";
     BufferPool bp{filename, 4};
     // alloc 5000 pages
@@ -203,11 +199,19 @@ public:
 
     bp.flush_all();
     pure_assert(std::filesystem::file_size(filename) ==
-                5001 * bplus_tree::PAGE_SIZE);
+                5001 * PAGE_SIZE);
+
+    pure_assert(bp.page_count() == 5001) << "page count : " << bp.page_count();
+    pure_assert(bp.free_page_count() == 0);
 
     bp.close();
 
     BufferPool bp2{filename, 1};
+
+    // check meta data
+    pure_assert(bp2.page_count() == 5001);
+    pure_assert(bp2.free_page_count() == 0);
+
     for (auto i = 0; i < 5000; ++i) {
       auto p = bp2.fetch(i + 1);
       pure_assert(p);
