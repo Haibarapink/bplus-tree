@@ -1,6 +1,6 @@
-#include "BufferPool.hpp"
-#include "Logger.hpp"
-#include "PureTest.hpp"
+#include "buffer_pool.hpp"
+#include "logger.hpp"
+#include "rure_test.hpp"
 #include <cstdio>
 #include <random>
 #include <set>
@@ -198,8 +198,7 @@ public:
     }
 
     bp.flush_all();
-    pure_assert(std::filesystem::file_size(filename) ==
-                5001 * PAGE_SIZE);
+    pure_assert(std::filesystem::file_size(filename) == 5001 * PAGE_SIZE);
 
     pure_assert(bp.page_count() == 5001) << "page count : " << bp.page_count();
     pure_assert(bp.free_page_count() == 0);
