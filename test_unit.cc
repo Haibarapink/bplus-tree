@@ -221,6 +221,20 @@ public:
   }
 };
 
+void test_serilze() {
+  BufferPool bfp{"test_ser.db", 1};
+  auto p = bfp.new_page();
+  p->page_type = kInternalPageType;
+  bfp.unpin(p->id, true);
+  bfp.flush_all();
+  bfp.close();
+
+  BufferPool bfp2{"test_ser.db", 1};
+  auto p2 = bfp2.fetch(p->id);
+  pure_assert(p2);
+  pure_assert(p2->page_type == kInternalPageType);
+}
+
 int main(int argc, char **argv) {
   PURE_TEST_PREPARE();
   PURE_TEST_CASE(lru_test);
@@ -235,6 +249,8 @@ int main(int argc, char **argv) {
     BufferPoolTest().huge_test();
     remove("test_huge.db");
   });
+
+  PURE_TEST_CASE(test_serilze);
 
   PURE_TEST_RUN();
 }

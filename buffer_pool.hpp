@@ -96,6 +96,7 @@ public:
   // need store in disk
   PageId id = INVALID_PAGE_ID;
   int page_type = 0;
+
   std::unique_ptr<char> data = nullptr;
 
   bool is_dirty() const { return dirty == 1; }
@@ -109,18 +110,19 @@ public:
 
   virtual void serliaze() {
     if (data == nullptr) {
-      data = std::make_unique<char>(PAGE_SIZE);
+      //  data = std::make_unique<char>(PAGE_SIZE);
+      assert(false);
     }
     std::memcpy(data.get(), &id, sizeof(PageId));
     std::memcpy(data.get() + sizeof(PageId), &page_type, sizeof(int));
   }
 
-  virtual size_t data_offset() const { return sizeof(PageId); }
+  virtual size_t data_offset() const { return sizeof(PageId) + sizeof(int); }
   virtual char *get_data() {
     if (!data) {
       return nullptr;
     }
-    return data.get() + data_offset();
+    return (data.get() + data_offset());
   }
 };
 
@@ -308,7 +310,10 @@ public:
 
     auto ok = disk_manager_->read_page(page_id, new_page->data.get());
     new_page->pin_count = 1;
+    new_page->deserialize();
+    new_page->id = page_id;
     // TODO need to handle the error ?
+
     return new_page;
   }
 
@@ -328,6 +333,7 @@ public:
         it->second->dirty = 1;
       }
       if (it->second->pin_count == 0) {
+        assert(page_id_map_.find(page_id) != page_id_map_.end());
         replacer_.put(page_id_map_[page_id]);
       }
     }
@@ -336,6 +342,7 @@ public:
   void flush(PageId page_id) {
     auto it = page_map_.find(page_id);
     if (it != page_map_.end()) {
+      it->second->serliaze();
       bool ok = disk_manager_->write_page(page_id, it->second->data.get());
       if (ok) {
         it->second->clear_dirty();

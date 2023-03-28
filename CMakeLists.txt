@@ -8,5 +8,8 @@ add_compile_definitions(DEBUG)
 # set compile flags -g
 set(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g -ggdb")
 
-add_executable(tests tests.cc)
-add_executable(log_test log_test.cc)
+# set -g
+set(CMAKE_CXX_FLAGS_RELEASE "-g")
+
+add_executable(test_unit test_unit.cc)
+add_executable(test_bpt test_bpt.cc)
