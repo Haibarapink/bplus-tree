@@ -92,6 +92,8 @@ public:
 
   std::int8_t dirty = 0;
   size_t pin_count = 0;
+
+  // need store in disk
   PageId id = INVALID_PAGE_ID;
   int page_type = 0;
   std::unique_ptr<char> data = nullptr;
