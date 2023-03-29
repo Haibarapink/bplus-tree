@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <random>
 #include <set>
+#include <system_error>
 #include <variant>
 #include <vector>
 
@@ -145,6 +146,8 @@ public:
     // test the basic api
     const char *filename = "test.db";
     BufferPool bp{filename, 4};
+    pure_assert(bp.open() == std::error_code{});
+    pure_assert(bp.page_count() == 1);
     // alloc 20 pages
     std::vector<Page *> pages;
     for (int i = 0; i < 20; ++i) {
@@ -185,6 +188,7 @@ public:
     // test the huge data
     const char *filename = "test_huge.db";
     BufferPool bp{filename, 4};
+    bp.open();
     // alloc 5000 pages
     std::vector<int> rands(5000);
     for (auto i = 0; i < 5000; ++i) {
@@ -196,6 +200,8 @@ public:
       pure_assert(p->id == i + 1);
       bp.unpin(p->id, true);
     }
+
+    pure_assert(bp.page_count() == 5001);
 
     bp.flush_all();
     pure_assert(std::filesystem::file_size(filename) == 5001 * PAGE_SIZE);

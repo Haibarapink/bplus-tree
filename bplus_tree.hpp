@@ -3,11 +3,25 @@
 #include "logger.hpp"
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string_view>
+#include <sys/types.h>
+#include <system_error>
 
 using bytes = std::vector<char>;
 using key_type = bytes;
 using value_type = bytes;
+
+// @brief get key at index
+inline int key_cmp(const key_type &left, const key_type &right) {
+  if (left == right) {
+    return 0;
+  }
+  if (left < right) {
+    return -1;
+  }
+  return 1;
+}
 
 class InternalNode {
 public:
@@ -17,7 +31,12 @@ public:
     PageId child; // pointer to right child
   };
 
-  int insert_idx(const key_type &key) {
+  bool contains(const key_type &key) {
+    auto [exist, idx] = search(key);
+    return exist;
+  }
+
+  int search_idx(const key_type &key) {
     int l = 0, r = num_keys - 1;
     while (l <= r) {
       int mid = (l + r) / 2;
@@ -27,11 +46,41 @@ public:
         l = mid + 1;
       }
     }
+    // key(l) <= key
     return l;
   }
 
+  auto search(const key_type &key) -> std::pair<bool, int> {
+    bool exist = false;
+    int l = 0, r = num_keys - 1;
+
+    while (l <= r) {
+      int mid = (l + r) / 2;
+      if (key < keys_[mid]) {
+        r = mid - 1;
+      } else if (key > keys_[mid]) {
+        l = mid + 1;
+      } else {
+        exist = true;
+        l = mid;
+        break;
+      }
+    }
+
+    return {exist, l};
+  }
+
+  PageId child(const key_type &key) {
+    int idx = search_idx(key);
+    if (idx == num_keys) {
+      return INVALID_PAGE_ID;
+    }
+
+    return items_[idx].child;
+  }
+
   void insert(key_type key, PageId child) {
-    int idx = insert_idx(key);
+    int idx = search_idx(key);
     Element item;
     item.key_size = key.size();
     // item.key_pos = 0; // TODO
@@ -42,7 +91,7 @@ public:
   }
 
   void remove(const key_type &key) {
-    int idx = insert_idx(key);
+    int idx = search_idx(key);
     if (idx == num_keys || keys_[idx] != key) {
       return;
     }
@@ -139,7 +188,12 @@ public:
     // int value_pos;
   };
 
-  int insert_idx(const key_type &key) {
+  bool contain(const key_type &key) {
+    auto [exist, idx] = search(key);
+    return exist;
+  }
+
+  int search_idx(const key_type &key) {
     int l = 0, r = num_kv_ - 1;
     while (l <= r) {
       int mid = (l + r) / 2;
@@ -152,8 +206,20 @@ public:
     return l;
   }
 
+  auto search(const key_type &key) -> std::pair<bool, int> {
+    int idx = search_idx(key);
+    if (idx < num_kv_ && kvs_[idx].first == key) {
+      return std::make_pair(true, idx);
+    }
+    return std::make_pair(false, idx);
+  }
+
+  void insert(key_type k, value_type v) {
+    insert(std::make_pair(std::move(k), std::move(v)));
+  }
+
   void insert(kv_type kv) {
-    int idx = insert_idx(kv.first);
+    int idx = search_idx(kv.first);
     Element item;
     item.key_size = kv.first.size();
     item.value_size = kv.second.size();
@@ -165,7 +231,7 @@ public:
   }
 
   void remove(const key_type &k) {
-    int idx = insert_idx(k);
+    int idx = search_idx(k);
     if (idx < num_kv_ && kvs_[idx].first == k) {
       items_.erase(items_.begin() + idx);
       kvs_.erase(kvs_.begin() + idx);
@@ -245,4 +311,141 @@ private:
   std::vector<kv_type> kvs_;
 };
 
-class BPlusTree {};
+class BPlusTree {
+public:
+  friend class BPlusTreeTest;
+
+  BPlusTree(std::string_view db, size_t defalt_pool_size = 32)
+      : bfp_(new BufferPool(db, defalt_pool_size)) {}
+
+  std::error_code open() {
+    init();
+    return std::error_code();
+  }
+
+  // If key is exist, the value will be rewrited.
+  std::error_code insert(key_type k, value_type v) {
+    if (root_ == INVALID_PAGE_ID) {
+      return build_new_tree(std::move(k), std::move(v));
+    }
+
+    return insert_leaf(std::move(k), std::move(v));
+  }
+
+  // TODO If I can't fetch the meta page, allocate a new page, and write into db
+  // file.
+  // If close fail, return std::errc::not_enough_memory
+  std::error_code close() {
+    auto meta_page = bfp_->fetch(1);
+    if (!meta_page) {
+      return std::make_error_code(std::errc::not_enough_memory);
+    }
+    meta_.root = root_;
+    meta_.write(meta_page);
+    bfp_->close();
+    return std::error_code();
+  }
+
+private:
+  struct BPlusTreeMeta {
+    // write on the first page
+    PageId root;
+    size_t leaf_size;
+    size_t internal_size;
+
+    void update(PageId id, size_t leaf_size, size_t internal_size) {
+      this->leaf_size = leaf_size;
+      this->internal_size = internal_size;
+    }
+
+    void read(Page *p) {
+      assert(p);
+      char *data = p->get_data();
+      std::memcpy(&root, data, sizeof(PageId));
+      data += sizeof(PageId);
+      std::memcpy(&leaf_size, data, sizeof(size_t));
+      data += sizeof(size_t);
+      std::memcpy(&internal_size, data, sizeof(size_t));
+    }
+
+    void write(Page *p) {
+      assert(p);
+      char *data = p->get_data();
+      std::memcpy(data, &root, sizeof(PageId));
+      data += sizeof(PageId);
+      std::memcpy(data, &leaf_size, sizeof(size_t));
+      data += sizeof(size_t);
+      std::memcpy(data, &internal_size, sizeof(size_t));
+    }
+  };
+
+private:
+  std::error_code init() {
+    // read meta
+    assert(bfp_);
+    Page *meta_page = bfp_->fetch(1);
+
+    if (meta_page == nullptr) {
+      return std::make_error_code(std::errc::io_error);
+    }
+
+    meta_.read(meta_page);
+    bfp_->unpin(meta_page->id);
+    root_ = meta_.root;
+    return std::error_code();
+  }
+
+private:
+  // tree op
+  std::error_code build_new_tree(key_type k, value_type v) {
+    auto leaf_page = bfp_->new_page();
+    if (!leaf_page) {
+      return std::make_error_code(std::errc::not_enough_memory);
+    }
+
+    LeafNode leaf;
+    leaf.insert(std::move(k), std::move(v));
+    leaf.write(leaf_page);
+    bfp_->unpin(leaf_page->id, true);
+
+    root_ = leaf_page->id;
+    return std::error_code();
+  }
+
+  std::error_code insert_leaf(key_type k, value_type v) {
+    Page *leaf_page = find_leaf(k);
+    if (!leaf_page) {
+      return std::make_error_code(std::errc::io_error);
+    }
+
+    LeafNode leaf;
+    leaf.read(leaf_page);
+
+    // TODO
+  }
+
+  Page *find_leaf(const key_type &key) {
+    PageId pid = root_;
+    while (pid != INVALID_PAGE_ID) {
+      Page *p = bfp_->fetch(pid);
+      if (p->page_type == kLeafPageType) {
+        return p;
+      } else {
+        InternalNode node;
+        node.read(p);
+        bfp_->unpin(pid);
+
+        auto [exist, idx] = node.search(key);
+        if (!exist && idx > 0) {
+          --idx;
+        }
+        pid = node.item(idx).child;
+      }
+    }
+    return nullptr;
+  }
+
+  std::unique_ptr<BufferPool> bfp_ = nullptr;
+  BPlusTreeMeta meta_;
+  PageId root_ = INVALID_PAGE_ID;
+};

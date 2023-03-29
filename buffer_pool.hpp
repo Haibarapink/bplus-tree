@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <memory>
 #include <mutex>
+#include <system_error>
 #include <variant>
 #include <vector>
 
@@ -215,12 +216,21 @@ public:
 
   using PagePtr = std::unique_ptr<Page>;
 
-  DefaultBufferPool(std::string_view db, size_t bfp_size) {
+  DefaultBufferPool(std::string_view db, size_t bfp_size)
+      : name_(db), bfp_size_(bfp_size) {}
+
+  // ~DefaultBufferPool() { close(); }
+  std::error_code open() {
     PageId next_id = 1;
 
-    bool file_exists =
-        std::filesystem::exists(db) && std::filesystem::is_regular_file(db);
-    disk_manager_ = std::make_unique<DiskManager>(db, next_id);
+    bool file_exists = std::filesystem::exists(name_) &&
+                       std::filesystem::is_regular_file(name_);
+
+    if (!file_exists && std::filesystem::is_directory(name_)) {
+      return std::make_error_code(std::errc::is_a_directory);
+    }
+
+    disk_manager_ = std::make_unique<DiskManager>(name_, next_id);
 
     char *meta_data = new char[PAGE_SIZE];
     std::memset(meta_data, 0, PAGE_SIZE);
@@ -242,7 +252,7 @@ public:
       disk_manager_->set_pid(1);
     }
 
-    for (size_t i = 0; i < bfp_size; ++i) {
+    for (size_t i = 0; i < bfp_size_; ++i) {
       char *buf = new char[PAGE_SIZE];
       std::memset(buf, 0, PAGE_SIZE);
       PagePtr page = std::make_unique<Page>(buf);
@@ -254,9 +264,17 @@ public:
               << "page count " << meta_page_->page_count << "free list size "
               << meta_page_->free_list_size << "next " << meta_page_->next
               << "prev " << meta_page_->prev;
+
+    return std::error_code();
   }
 
-  // ~DefaultBufferPool() { close(); }
+  //@brief contain the page on the disk file
+  bool contain(PageId pid) {
+    if (pid == INVALID_PAGE_ID) {
+      return false;
+    }
+    return pid < meta_page_->page_count;
+  }
 
   Page *new_page() {
     PageId id = disk_manager_->alloc_page();
@@ -405,6 +423,9 @@ private:
 
   std::unordered_map<PageId, size_t> page_id_map_;
   std::unordered_map<PageId, Page *> page_map_;
+
+  std::string name_;
+  size_t bfp_size_;
 };
 
 inline bool DiskManager::read_page(PageId id, char *dst) {
