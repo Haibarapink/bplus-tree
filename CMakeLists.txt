@@ -11,5 +11,5 @@ set(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g -ggdb")
 # set -g
 set(CMAKE_CXX_FLAGS_RELEASE "-g")
 
-add_executable(test_unit test_unit.cc)
-add_executable(test_bpt test_bpt.cc)
+add_executable(test_unit tests/test_unit.cc)
+add_executable(test_bpt tests/test_bpt.cc)

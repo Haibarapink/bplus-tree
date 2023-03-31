@@ -25,6 +25,8 @@ inline int key_cmp(const key_type &left, const key_type &right) {
 
 class InternalNode {
 public:
+  friend class BPlusTree;
+
   struct Element {
     int key_size;
     // int key_pos;
@@ -37,7 +39,7 @@ public:
   }
 
   int search_idx(const key_type &key) {
-    int l = 0, r = num_keys - 1;
+    int l = 0, r = num_keys_ - 1;
     while (l <= r) {
       int mid = (l + r) / 2;
       if (key < keys_[mid]) {
@@ -52,7 +54,7 @@ public:
 
   auto search(const key_type &key) -> std::pair<bool, int> {
     bool exist = false;
-    int l = 0, r = num_keys - 1;
+    int l = 0, r = num_keys_ - 1;
 
     while (l <= r) {
       int mid = (l + r) / 2;
@@ -72,7 +74,7 @@ public:
 
   PageId child(const key_type &key) {
     int idx = search_idx(key);
-    if (idx == num_keys) {
+    if (idx == num_keys_) {
       return INVALID_PAGE_ID;
     }
 
@@ -87,22 +89,22 @@ public:
     item.child = child;
     items_.insert(items_.begin() + idx, item);
     keys_.insert(keys_.begin() + idx, std::move(key));
-    ++num_keys;
+    ++num_keys_;
   }
 
   void remove(const key_type &key) {
     int idx = search_idx(key);
-    if (idx == num_keys || keys_[idx] != key) {
+    if (idx == num_keys_ || keys_[idx] != key) {
       return;
     }
     remove(idx);
   }
 
   void remove(int idx) {
-    assert(idx < num_keys && idx >= 0);
+    assert(idx < num_keys_ && idx >= 0);
     items_.erase(items_.begin() + idx);
     keys_.erase(keys_.begin() + idx);
-    --num_keys;
+    --num_keys_;
   }
 
   size_t size() const { return items_.size(); }
@@ -110,13 +112,15 @@ public:
   // read from page
   void read(Page *p) {
     assert(p->page_type == kInternalPageType);
+    this->p = p;
     // read key nums
     char *data = p->get_data();
-    std::memcpy(&num_keys, data, sizeof(int));
+    std::memcpy(&num_keys_, data, sizeof(int));
     data += sizeof(int);
-
+    std::memcpy(&parent_, data, sizeof(PageId));
+    data += sizeof(PageId);
     // read items
-    for (int i = 0; i < num_keys; ++i) {
+    for (int i = 0; i < num_keys_; ++i) {
       Element item;
       std::memcpy(&item.key_size, data, sizeof(int));
       data += sizeof(int);
@@ -128,7 +132,7 @@ public:
     }
 
     // read keys
-    for (int i = 0; i < num_keys; ++i) {
+    for (int i = 0; i < num_keys_; ++i) {
       key_type key;
       key.resize(items_[i].key_size);
       std::memcpy(key.data(), data, items_[i].key_size);
@@ -140,9 +144,13 @@ public:
   // write to page
   void write(Page *p) {
     char *data = p->get_data();
-    std::memcpy(data, &num_keys, sizeof(int));
+    std::memcpy(data, &num_keys_, sizeof(int));
     data += sizeof(int);
-    for (int i = 0; i < num_keys; ++i) {
+
+    std::memcpy(data, &parent_, sizeof(PageId));
+    data += sizeof(PageId);
+
+    for (int i = 0; i < num_keys_; ++i) {
       std::memcpy(data, &items_[i].key_size, sizeof(int));
       data += sizeof(int);
       // std::memcpy(data, &items_[i].key_pos, sizeof(int));
@@ -150,7 +158,7 @@ public:
       std::memcpy(data, &items_[i].child, sizeof(PageId));
       data += sizeof(PageId);
     }
-    for (int i = 0; i < num_keys; ++i) {
+    for (int i = 0; i < num_keys_; ++i) {
       std::memcpy(data, keys_[i].data(), keys_[i].size());
       data += keys_[i].size();
     }
@@ -168,17 +176,37 @@ public:
     return size < page_size;
   }
 
+  // caller is right node, and new_node is left node
+  key_type split(InternalNode &new_node) {
+    // move half of the keys to new_node
+    int mid = num_keys_ / 2;
+    new_node.num_keys_ = num_keys_ - mid;
+    for (auto i = 0; i < new_node.num_keys_; ++i) {
+      new_node.items_.push_back(std::move(items_[mid + i]));
+      new_node.keys_.push_back(std::move(keys_[mid + i]));
+    }
+
+    return new_node.keys_[0];
+  }
+
+  void set_parent(PageId parent) { parent_ = parent; }
+  PageId parent() const { return parent_; }
+
 private:
-  size_t meta_size() const { return p->data_offset() + sizeof(int); }
+  size_t meta_size() const {
+    return p->data_offset() + sizeof(int) + sizeof(PageId);
+  }
 
   Page *p;
-  int num_keys;
+  int num_keys_;
+  PageId parent_;
   std::vector<Element> items_;
   std::vector<key_type> keys_;
 };
 
 class LeafNode {
 public:
+  friend class BPlusTree;
   using kv_type = std::pair<key_type, value_type>;
 
   struct Element {
@@ -251,10 +279,12 @@ public:
 
   void read(Page *p) {
     assert(p->page_type == kLeafPageType);
+    this->p_ = p;
     // read key nums
     char *data = p->get_data();
     std::memcpy(&num_kv_, data, sizeof(int));
     data += sizeof(int);
+    std::memcpy(&parent_, data, sizeof(PageId));
 
     // read items
     for (int i = 0; i < num_kv_; ++i) {
@@ -287,6 +317,8 @@ public:
     char *data = p->get_data();
     std::memcpy(data, &num_kv_, sizeof(int));
     data += sizeof(int);
+    std::memcpy(data, &parent_, sizeof(PageId));
+    data += sizeof(PageId);
     for (int i = 0; i < num_kv_; ++i) {
       std::memcpy(data, &items_[i].key_size, sizeof(int));
       data += sizeof(int);
@@ -305,8 +337,13 @@ public:
     }
   }
 
+  void set_parent(PageId parent) { parent_ = parent; }
+  PageId parent() const { return parent_; }
+
 private:
+  Page *p_;
   int num_kv_;
+  PageId parent_ = INVALID_PAGE_ID;
   std::vector<Element> items_;
   std::vector<kv_type> kvs_;
 };
@@ -396,6 +433,14 @@ private:
   }
 
 private:
+  InternalNode fetch_parent(PageId pid) {
+    return fetch<InternalNode>(pid);
+  }
+
+  template <typename NodeType>
+  NodeType fetch(PageId pid);
+
+
   // tree op
   std::error_code build_new_tree(key_type k, value_type v) {
     auto leaf_page = bfp_->new_page();
@@ -421,7 +466,14 @@ private:
     LeafNode leaf;
     leaf.read(leaf_page);
 
-    // TODO
+    leaf.insert(std::move(k), std::move(v));
+    // if (leaf.less_than(PAGE_SIZE)) {
+    //   return std::error_code{};
+    // }
+
+    // // split
+    // LeafNode new_leaf;
+    // auto new_key = leaf.split(new_leaf);
   }
 
   Page *find_leaf(const key_type &key) {
@@ -435,7 +487,9 @@ private:
         node.read(p);
         bfp_->unpin(pid);
 
+        // first item's key is empty
         auto [exist, idx] = node.search(key);
+
         if (!exist && idx > 0) {
           --idx;
         }
@@ -449,3 +503,33 @@ private:
   BPlusTreeMeta meta_;
   PageId root_ = INVALID_PAGE_ID;
 };
+
+
+template <>
+InternalNode BPlusTree::fetch<InternalNode>(PageId pid) {
+  auto p = bfp_->fetch(pid);
+  if (!p) {
+    return InternalNode();
+  }
+
+  InternalNode node;
+  node.read(p);
+  bfp_->unpin(pid);
+  return node;
+}
+
+template <>
+LeafNode BPlusTree::fetch<LeafNode>(PageId pid) {
+  auto p = bfp_->fetch(pid);
+  if (!p) {
+    return LeafNode();
+  }
+
+  LeafNode node;
+  node.read(p);
+  bfp_->unpin(pid);
+  return node;
+}
+
+
+} // namespace bpt

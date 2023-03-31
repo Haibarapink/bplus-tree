@@ -219,7 +219,6 @@ public:
   DefaultBufferPool(std::string_view db, size_t bfp_size)
       : name_(db), bfp_size_(bfp_size) {}
 
-  // ~DefaultBufferPool() { close(); }
   std::error_code open() {
     PageId next_id = 1;
 
@@ -230,6 +229,7 @@ public:
       return std::make_error_code(std::errc::is_a_directory);
     }
 
+    open_ = true;
     disk_manager_ = std::make_unique<DiskManager>(name_, next_id);
 
     char *meta_data = new char[PAGE_SIZE];
@@ -270,6 +270,7 @@ public:
 
   //@brief contain the page on the disk file
   bool contain(PageId pid) {
+    assert(open_);
     if (pid == INVALID_PAGE_ID) {
       return false;
     }
@@ -277,6 +278,7 @@ public:
   }
 
   Page *new_page() {
+    assert(open_);
     PageId id = disk_manager_->alloc_page();
 
     Page *page = fetch(id);
@@ -298,6 +300,7 @@ public:
   }
 
   Page *fetch(PageId page_id) {
+    assert(open_);
     if (page_id == INVALID_PAGE_ID) {
       assert(false);
     }
@@ -314,6 +317,7 @@ public:
     size_t idx;
     bool found = replacer_.victim(idx);
     if (!found) {
+      LOG_DEBUG << "replacer is empty";
       return nullptr;
     }
 
@@ -336,6 +340,7 @@ public:
   }
 
   void pin(PageId page_id) {
+    assert(open_);
     auto it = page_map_.find(page_id);
     if (it != page_map_.end()) {
       it->second->pin_count++;
@@ -344,6 +349,7 @@ public:
   }
 
   void unpin(PageId page_id, bool is_dirty = false) {
+    assert(open_);
     auto it = page_map_.find(page_id);
     if (it != page_map_.end()) {
       it->second->pin_count--;
@@ -358,6 +364,7 @@ public:
   }
 
   void flush(PageId page_id) {
+    assert(open_);
     auto it = page_map_.find(page_id);
     if (it != page_map_.end()) {
       it->second->serliaze();
@@ -369,6 +376,7 @@ public:
   }
 
   void flush_all() {
+    assert(open_);
     for (auto &page : pages_) {
       if (page->dirty == 1) {
         page->serliaze();
@@ -383,6 +391,7 @@ public:
   }
 
   bool write_meta() {
+    assert(open_);
     if (meta_page_ == nullptr) {
       return false;
     }
@@ -390,6 +399,7 @@ public:
   }
 
   void close() {
+    assert(open_);
     if (meta_page_ && meta_page_->dirty == 1) {
       write_meta();
     }
@@ -397,9 +407,18 @@ public:
     disk_manager_->close();
   }
 
-  size_t page_count() const { return meta_page_->page_count; }
-  size_t free_page_count() const { return meta_page_->free_list_size; }
-  size_t buffer_size() const { return pages_.size(); }
+  size_t page_count() const {
+    assert(open_);
+    return meta_page_->page_count;
+  }
+  size_t free_page_count() const {
+    assert(open_);
+    return meta_page_->free_list_size;
+  }
+  size_t buffer_size() const {
+    assert(open_);
+    return pages_.size();
+  }
 
 private:
   // @brief: change the page id and reset the dirty bit
@@ -412,6 +431,8 @@ private:
 
   // new a free list page
   PageId new_free_list_page() { throw std::runtime_error("unimplemented"); }
+
+  bool open_ = false;
 
   ReplacerType replacer_;
   std::unique_ptr<BfpMetaPage> meta_page_ = nullptr;
