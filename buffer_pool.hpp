@@ -17,20 +17,6 @@
 constexpr int kInternalPageType = 1;
 constexpr int kLeafPageType = 2;
 
-template <typename T, typename E> class Result {
-public:
-  Result(T t) : value_(std::move(t)) {}
-  Result(E e) : value_(std::move(e)) {}
-  E error() const { return std::get<E>(value_); }
-  T unwarp() const { return std::get<T>(value_); }
-  // move out value
-  T unwarp_move() { return std::move(std::get<T>(value_)); }
-  bool is_ok() const { return std::holds_alternative<T>(value_); }
-
-private:
-  std::variant<T, E> value_;
-};
-
 // defines the page id type and the invalid page id
 using PageId = long;
 constexpr PageId INVALID_PAGE_ID = -1;

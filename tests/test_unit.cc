@@ -1,6 +1,6 @@
 #include "../buffer_pool.hpp"
 #include "../logger.hpp"
-#include "../pure_test.hpp"
+#include "pure_test.hpp"
 #include <cstdio>
 #include <random>
 #include <set>
