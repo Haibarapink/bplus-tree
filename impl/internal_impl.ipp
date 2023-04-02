@@ -2,7 +2,7 @@
 #include "../bplus_tree.hpp"
 
 // find the first key that is greater than or equal to the argument key
-int InternalNode::find_idx(const key_type &key) {
+inline int InternalNode::find_idx(const key_type &key) {
   int l = -1, r = num_keys_;
   while (l + 1 != r) {
     int mid = (l + r) / 2;
@@ -17,7 +17,7 @@ int InternalNode::find_idx(const key_type &key) {
 }
 
 // find the first key that is greater than or equal to the argument key
-auto InternalNode::find(const key_type &key) -> std::pair<bool, int> {
+inline auto InternalNode::find(const key_type &key) -> std::pair<bool, int> {
   bool exist = false;
   int l = -1, r = num_keys_;
 
@@ -28,16 +28,15 @@ auto InternalNode::find(const key_type &key) -> std::pair<bool, int> {
       l = mid;
     } else {
       r = mid;
-      if (cmp == 0) {
-        exist = true;
-      }
     }
   }
-
+  if (r < num_keys_ && r >= 0 && keys_[r] == key) {
+    exist = true;
+  }
   return {exist, r};
 }
 
-PageId InternalNode::child(const key_type &key) {
+inline PageId InternalNode::child(const key_type &key) {
   assert(num_keys_);
   // return greater than or equal to key
   int idx = find_idx(key);
@@ -49,7 +48,7 @@ PageId InternalNode::child(const key_type &key) {
   return items_[idx].child;
 }
 
-void InternalNode::insert(key_type key, PageId child) {
+inline void InternalNode::insert(key_type key, PageId child) {
   auto idx = find_idx(key);
 
   Element item;
@@ -66,7 +65,7 @@ void InternalNode::insert(key_type key, PageId child) {
   ++num_keys_;
 }
 
-void InternalNode::remove(const key_type &key) {
+inline void InternalNode::remove(const key_type &key) {
   int idx = find_idx(key);
   if (idx == num_keys_ || keys_[idx] != key) {
     return;
@@ -74,14 +73,14 @@ void InternalNode::remove(const key_type &key) {
   remove(idx);
 }
 
-void InternalNode::remove(int idx) {
+inline void InternalNode::remove(int idx) {
   assert(idx < num_keys_ && idx >= 0);
   items_.erase(items_.begin() + idx);
   keys_.erase(keys_.begin() + idx);
   --num_keys_;
 }
 
-void InternalNode::read(Page *p) {
+inline void InternalNode::read(Page *p) {
   assert(p->page_type == kInternalPageType);
   this->p = p;
   // read key nums
@@ -113,7 +112,7 @@ void InternalNode::read(Page *p) {
   }
 }
 
-void InternalNode::write(Page *p) {
+inline void InternalNode::write(Page *p) const {
   assert(less_than(PAGE_SIZE));
   char *data = p->get_data();
   std::memcpy(data, &num_keys_, sizeof(int));
@@ -136,7 +135,22 @@ void InternalNode::write(Page *p) {
   }
 }
 
-const key_type &InternalNode::split(InternalNode &new_node) {
+// inline const key_type &InternalNode::split(InternalNode &new_node) {
+//   int mid = num_keys_ / 2;
+//   new_node.num_keys_ = num_keys_ - mid;
+
+//   for (auto i = 0; i < new_node.num_keys_; ++i) {
+//     new_node.items_.push_back(items_[mid + i]);
+//     new_node.keys_.push_back(std::move(keys_[mid + i]));
+//   }
+
+//   items_.erase(items_.begin() + mid, items_.end());
+//   keys_.erase(keys_.begin() + mid, keys_.end());
+//   num_keys_ = mid;
+//   return new_node.keys_[0];
+// }
+
+inline void InternalNode::move_half_to(InternalNode &new_node) {
   int mid = num_keys_ / 2;
   new_node.num_keys_ = num_keys_ - mid;
 
@@ -148,5 +162,4 @@ const key_type &InternalNode::split(InternalNode &new_node) {
   items_.erase(items_.begin() + mid, items_.end());
   keys_.erase(keys_.begin() + mid, keys_.end());
   num_keys_ = mid;
-  return new_node.keys_[0];
 }
