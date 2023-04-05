@@ -210,6 +210,5 @@ private:
 
 #include "impl/internal_impl.ipp"
 #include "impl/leaf_impl.ipp"
-#include "impl/tree_impl.ipp"
 #include "impl/tree_insert_impl.ipp"
 #include "impl/tree_search_impl.ipp"

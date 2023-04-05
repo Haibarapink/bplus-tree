@@ -8,7 +8,7 @@
 // insert key, value
 // write to page
 // unpin page
-bool BPlusTree::make_tree(key_type k, value_type v) {
+inline bool BPlusTree::make_tree(key_type k, value_type v) {
   auto root = buffer_pool_.new_page();
   if (!root) {
     LOG_DEBUG << "new page failed";
@@ -35,7 +35,7 @@ bool BPlusTree::make_tree(key_type k, value_type v) {
 // insert key, right
 // write to page
 // unpin page
-bool BPlusTree::make_root(key_type k, PageId left, PageId right) {
+inline bool BPlusTree::make_root(key_type k, PageId left, PageId right) {
   auto root = buffer_pool_.new_page();
   if (!root) {
     LOG_DEBUG << "new page failed";
@@ -63,7 +63,7 @@ bool BPlusTree::make_root(key_type k, PageId left, PageId right) {
   return true;
 }
 
-bool BPlusTree::insert(key_type key, value_type val) {
+inline bool BPlusTree::insert(key_type key, value_type val) {
   if (root_ == INVALID_PAGE_ID) {
     return make_tree(std::move(key), std::move(val));
   }
@@ -107,8 +107,8 @@ bool BPlusTree::insert(key_type key, value_type val) {
                        new_leaf_node.key(0));
 }
 
-bool BPlusTree::insert_parent(PageId parent, PageId left, PageId right,
-                              key_type key) {
+inline bool BPlusTree::insert_parent(PageId parent, PageId left, PageId right,
+                                     key_type key) {
   if (parent == INVALID_PAGE_ID || parent == 0) {
     LOG_DEBUG << "make root"
               << " left" << left << " right" << right;

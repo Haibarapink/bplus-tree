@@ -2,7 +2,7 @@
 
 #include "../bplus_tree.hpp"
 
-Page *BPlusTree::find_leaf(const key_type &key) {
+inline Page *BPlusTree::find_leaf(const key_type &key) {
   PageId page_id = root_;
   Page *p = buffer_pool_.fetch(page_id);
   while (p->page_type == kInternalPageType) {
@@ -14,7 +14,7 @@ Page *BPlusTree::find_leaf(const key_type &key) {
   return p;
 }
 
-bool BPlusTree::search(const key_type &key, value_type &val) {
+inline bool BPlusTree::search(const key_type &key, value_type &val) {
   auto p = find_leaf(key);
   auto leaf_node = LeafNode();
   leaf_node.read(p);
