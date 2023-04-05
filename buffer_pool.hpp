@@ -104,6 +104,8 @@ public:
     std::memcpy(data.get() + sizeof(PageId), &page_type, sizeof(int));
   }
 
+  static size_t offset() { return sizeof(PageId) + sizeof(int); }
+
   virtual size_t data_offset() const { return sizeof(PageId) + sizeof(int); }
   virtual char *get_data() {
     if (!data) {

@@ -27,6 +27,8 @@ inline int key_cmp(const key_type &left, const key_type &right) {
   return res;
 }
 
+// If modfied this class, please modify insert and remove in BPlusTree
+// setting children's parent
 class InternalNode {
 public:
   friend class BPlusTree;
@@ -82,7 +84,7 @@ public:
 
 private:
   size_t meta_size() const {
-    return p->data_offset() + sizeof num_keys_ + sizeof parent_;
+    return Page::offset() + sizeof num_keys_ + sizeof parent_;
   }
 
   Page *p = nullptr;
@@ -117,6 +119,9 @@ public:
     return kvs_[idx].second;
   }
 
+  void set_parent(PageId parent) { parent_ = parent; }
+  PageId parent() const { return parent_; }
+
   int find_idx(const key_type &key);
   auto find(const key_type &key) -> std::pair<bool, int>;
   void insert(key_type key, value_type val);
@@ -128,9 +133,12 @@ public:
 
   void move_half_to(LeafNode &new_node);
 
+  size_t size() const { return items_.size(); }
+  key_type key(int idx) { return kvs_[idx].first; }
+
 private:
   size_t meta_size() const {
-    return p->data_offset() + sizeof num_keys_ + sizeof parent_;
+    return Page::offset() + sizeof num_keys_ + sizeof parent_;
   }
 
 private:
@@ -143,14 +151,60 @@ private:
 
 class BPlusTree {
 public:
+  friend class BPlusTreeTest;
+
+  BPlusTree(std::string_view db_name, size_t pool_size = 32)
+      : buffer_pool_(db_name, pool_size) {
+    buffer_pool_.open();
+  }
+
+  template <typename K, typename V> bool insert(const K &key, const V &val) {
+    return insert(bytes(key.begin(), key.end()), bytes(val.begin(), val.end()));
+  }
+
+  template <typename K, typename V> bool search(const K &key, V &val) {
+    bytes v;
+    bool res = search(bytes(key.begin(), key.end()), v);
+    val = V(v.begin(), v.end());
+    return res;
+  }
+
   bool insert(key_type key, value_type val);
+  bool search(const key_type &key, value_type &val);
 
 private:
   Page *find_leaf(const key_type &key);
+  bool insert_parent(PageId parent, PageId left, PageId right, key_type key);
+  bool make_tree(key_type k, value_type v);
+  bool make_root(key_type k, PageId left, PageId right);
+
+  bool set_parent(PageId p, PageId parent) {
+    auto page = buffer_pool_.fetch(p);
+    if (!page) {
+      return false;
+    }
+    if (page->page_type == kLeafPageType) {
+      auto leaf = LeafNode();
+      leaf.read(page);
+      leaf.set_parent(parent);
+      leaf.write(page);
+    } else {
+      auto internal = InternalNode();
+      internal.read(page);
+      internal.set_parent(parent);
+      internal.write(page);
+    }
+    buffer_pool_.unpin(p, true);
+    return true;
+  }
 
 private:
   PageId root_ = INVALID_PAGE_ID;
+  BufferPool buffer_pool_;
 };
 
 #include "impl/internal_impl.ipp"
 #include "impl/leaf_impl.ipp"
+#include "impl/tree_impl.ipp"
+#include "impl/tree_insert_impl.ipp"
+#include "impl/tree_search_impl.ipp"

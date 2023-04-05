@@ -103,7 +103,7 @@ inline void LeafNode::read(Page *p) {
 
 inline void LeafNode::write(Page *p) {
   assert(p->page_type == kLeafPageType);
-  assert(less_than(PAGE_SIZE));
+  assert(less_than(PAGE_SIZE) && "page size overflow");
 
   this->p = p;
   char *data = p->get_data();

@@ -56,6 +56,7 @@ void leaf_store() {
   page->page_type = kLeafPageType;
 
   node.read(page);
+  node.set_parent(page->id);
   for (auto i = 0; i < 100; ++i) {
     key_type k, v;
     k.push_back(i);

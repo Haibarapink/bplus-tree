@@ -81,7 +81,11 @@ inline void InternalNode::remove(int idx) {
 }
 
 inline void InternalNode::read(Page *p) {
-  assert(p->page_type == kInternalPageType);
+  if (p->page_type != kInternalPageType) {
+    LOG_DEBUG << "page type : " << p->page_type << " id : " << p->id;
+    assert(p->page_type == kInternalPageType);
+  }
+
   this->p = p;
   // read key nums
   char *data = p->get_data();
