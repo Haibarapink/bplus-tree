@@ -7,12 +7,12 @@ public:
   void make_test() {
     std::string_view db_name{"test"};
     BPlusTree tree{db_name, 32};
-    for (auto i = 0; i < 5000; ++i) {
+    for (auto i = 0; i < 10000; ++i) {
       bool insert_ok = tree.insert(std::to_string(i), std::to_string(i));
       PURE_TEST_EQ(insert_ok, true);
     }
 
-    for (auto i = 0; i < 1000; ++i) {
+    for (auto i = 0; i < 10000; ++i) {
       std::string val;
 
       bool search_ok = tree.search(std::to_string(i), val);
