@@ -23,6 +23,9 @@ bool BPlusTree::make_tree(key_type k, value_type v) {
   leaf_node.write(root);
   root_ = root->id;
   buffer_pool_.unpin(root->id, true);
+
+  LOG_DEBUG << "make tree : " << root->id;
+
   return true;
 }
 
@@ -54,6 +57,9 @@ bool BPlusTree::make_root(key_type k, PageId left, PageId right) {
 
   set_parent(left, root->id);
   set_parent(right, root->id);
+
+  LOG_DEBUG << "make root : " << root->id << " left " << left << " right "
+            << right;
   return true;
 }
 
@@ -85,13 +91,18 @@ bool BPlusTree::insert(key_type key, value_type val) {
   auto new_leaf_node = LeafNode();
   new_leaf_node.set_parent(leaf_node.parent());
   leaf_node.move_half_to(new_leaf_node);
-  LOG_DEBUG << "move half to new page  left size " << leaf_node.size()
-            << " new leaf size " << new_leaf_node.size();
+  LOG_DEBUG << "move half to new leaf page " << new_page->id;
 
   size_t left_id = p->id, right_id = new_page->id;
+
+  leaf_node.write(p);
+  new_leaf_node.write(new_page);
+
   buffer_pool_.unpin(left_id, true);
   buffer_pool_.unpin(right_id, true);
 
+  LOG_DEBUG << "insert parent " << leaf_node.parent() << " left " << left_id
+            << " right " << right_id;
   return insert_parent(leaf_node.parent(), p->id, new_page->id,
                        new_leaf_node.key(0));
 }
@@ -104,42 +115,51 @@ bool BPlusTree::insert_parent(PageId parent, PageId left, PageId right,
     return make_root(std::move(key), left, right);
   }
 
-  auto parent_page = buffer_pool_.fetch(parent);
-  auto internal_node = InternalNode();
-  internal_node.read(parent_page);
-  internal_node.insert(std::move(key), right);
-  if (internal_node.less_than(PAGE_SIZE)) {
-    internal_node.write(parent_page);
-    buffer_pool_.unpin(parent_page->id, true);
+  auto page = buffer_pool_.fetch(parent);
+  assert(page);
+  auto node = InternalNode();
+  if (page->page_type == kLeafPageType) {
+    LOG_DEBUG << "here";
+    auto page2 = buffer_pool_.fetch(parent);
+  }
+  node.read(page);
+  node.insert(std::move(key), right);
+  if (node.less_than(PAGE_SIZE)) {
+    node.write(page);
+    buffer_pool_.unpin(page->id, true);
     return true;
   }
 
   auto new_page = buffer_pool_.new_page();
   if (!new_page) {
     LOG_DEBUG << "new page failed";
-    buffer_pool_.unpin(parent_page->id, false);
+    buffer_pool_.unpin(page->id, false);
     return false;
   }
   new_page->page_type = kInternalPageType;
 
-  auto new_internal_node = InternalNode();
-  new_internal_node.set_parent(internal_node.parent());
-  internal_node.move_half_to(new_internal_node);
+  auto new_node = InternalNode();
+  new_node.set_parent(node.parent());
+  node.move_half_to(new_node);
+  LOG_DEBUG << "move half to new internal page " << new_page->id;
   // set parent
-  for (auto i = 0; i < internal_node.size(); ++i) {
-    auto child_id = internal_node.item(i).child;
+  for (auto i = 0; i < node.size(); ++i) {
+    auto child_id = node.item(i).child;
     assert(child_id != INVALID_PAGE_ID);
     set_parent(child_id, new_page->id);
-    LOG_DEBUG << "set parent " << parent_page->id << " to child " << child_id;
+    LOG_DEBUG << "set parent " << page->id << " to child " << child_id;
   }
 
-  buffer_pool_.unpin(parent_page->id, true);
-  buffer_pool_.unpin(new_page->id, true);
+  parent = node.parent();
+  left = page->id;
+  right = new_page->id;
+  key_type k = new_node.key(0);
 
-  parent = internal_node.parent();
-  left = internal_node.item(0).child;
-  right = new_internal_node.item(0).child;
-  key_type k = new_internal_node.key(0);
+  node.write(page);
+  new_node.write(new_page);
+
+  buffer_pool_.unpin(page->id, true);
+  buffer_pool_.unpin(new_page->id, true);
 
   return insert_parent(parent, left, right, std::move(k));
 }

@@ -18,5 +18,6 @@ bool BPlusTree::search(const key_type &key, value_type &val) {
   auto p = find_leaf(key);
   auto leaf_node = LeafNode();
   leaf_node.read(p);
+  buffer_pool_.unpin(p->id, false);
   return leaf_node.get(key, val);
 }

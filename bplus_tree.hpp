@@ -158,6 +158,11 @@ public:
     buffer_pool_.open();
   }
 
+  ~BPlusTree() {
+    buffer_pool_.flush_all();
+    buffer_pool_.close();
+  }
+
   template <typename K, typename V> bool insert(const K &key, const V &val) {
     return insert(bytes(key.begin(), key.end()), bytes(val.begin(), val.end()));
   }

@@ -1,7 +1,7 @@
 #pragma once
 #include <cstddef>
 #include <list>
-#include <unordered_map>
+#include <map>
 
 constexpr size_t DEFAULT_LRU_CAPACITY = 16;
 
@@ -68,7 +68,7 @@ public:
 
 private:
   std::list<T> lru_list_;
-  std::unordered_map<T, typename std::list<T>::iterator> dir_;
+  std::map<T, typename std::list<T>::iterator> dir_;
 
   size_t capacity_;
 };
@@ -106,7 +106,7 @@ public:
   bool touch(const T &t) { return dir_.count(t) > 0; }
 
 private:
-  std::unordered_map<T, typename std::list<T>::iterator> dir_;
+  std::map<T, typename std::list<T>::iterator> dir_;
   std::list<T> fifo_list_;
 };
 

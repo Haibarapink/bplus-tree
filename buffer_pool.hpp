@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <system_error>
@@ -289,6 +290,7 @@ public:
 
   Page *fetch(PageId page_id) {
     assert(open_);
+
     if (page_id == INVALID_PAGE_ID) {
       assert(false);
     }
@@ -297,7 +299,10 @@ public:
     auto it = page_map_.find(page_id);
     if (it != page_map_.end()) {
       // if the page is in the buffer pool, return the page
+      assert(it->second->id == page_id);
       it->second->pin_count++;
+      auto idx = page_index_[page_id];
+      replacer_.remove(idx);
       return it->second;
     }
 
@@ -311,11 +316,12 @@ public:
 
     Page *new_page = pages_[idx].get();
     if (new_page->dirty == 1) {
-      disk_manager_->write_page(new_page->id, new_page->data.get());
+      flush(new_page->id);
+      new_page->dirty = false;
     }
 
     change_page(new_page, page_id);
-    page_id_map_[page_id] = idx;
+    page_index_[page_id] = idx;
     page_map_[page_id] = new_page;
 
     auto ok = disk_manager_->read_page(page_id, new_page->data.get());
@@ -323,7 +329,6 @@ public:
     new_page->deserialize();
     new_page->id = page_id;
     // TODO need to handle the error ?
-
     return new_page;
   }
 
@@ -331,8 +336,9 @@ public:
     assert(open_);
     auto it = page_map_.find(page_id);
     if (it != page_map_.end()) {
+      assert(it->second->id == page_id);
       it->second->pin_count++;
-      replacer_.remove(page_id_map_[page_id]);
+      replacer_.remove(page_index_[page_id]);
     }
   }
 
@@ -340,13 +346,14 @@ public:
     assert(open_);
     auto it = page_map_.find(page_id);
     if (it != page_map_.end()) {
+      assert(it->second->id == page_id);
       it->second->pin_count--;
       if (is_dirty) {
         it->second->dirty = 1;
       }
       if (it->second->pin_count == 0) {
-        assert(page_id_map_.find(page_id) != page_id_map_.end());
-        replacer_.put(page_id_map_[page_id]);
+        assert(page_index_.find(page_id) != page_index_.end());
+        replacer_.put(page_index_[page_id]);
       }
     }
   }
@@ -355,6 +362,8 @@ public:
     assert(open_);
     auto it = page_map_.find(page_id);
     if (it != page_map_.end()) {
+      assert(page_id == it->second->id);
+      LOG_DEBUG << "flush page " << page_id;
       it->second->serliaze();
       bool ok = disk_manager_->write_page(page_id, it->second->data.get());
       if (ok) {
@@ -369,6 +378,7 @@ public:
       if (page->dirty == 1) {
         page->serliaze();
         bool ok = disk_manager_->write_page(page->id, page->data.get());
+        LOG_DEBUG << "flush page " << page->id;
         if (!ok) {
           LOG_DEBUG << page->id << " flush failed";
         } else {
@@ -411,6 +421,8 @@ public:
 private:
   // @brief: change the page id and reset the dirty bit
   void change_page(Page *page, PageId page_id) {
+    page_index_.erase(page->id);
+    page_map_.erase(page->id);
     page->id = page_id;
     page->dirty = 0;
     page->pin_count = 0;
@@ -430,8 +442,8 @@ private:
 
   std::unique_ptr<DiskManager> disk_manager_;
 
-  std::unordered_map<PageId, size_t> page_id_map_;
-  std::unordered_map<PageId, Page *> page_map_;
+  std::map<PageId, size_t> page_index_;
+  std::map<PageId, Page *> page_map_;
 
   std::string name_;
   size_t bfp_size_;
