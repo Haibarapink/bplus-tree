@@ -34,10 +34,12 @@ inline auto LeafNode::find(const key_type &key) -> std::pair<bool, int> {
     if (cmp > 0) {
       l = mid;
     } else {
+      // r >= key
       r = mid;
     }
   }
-  if (r < num_keys_ && r >= 0 && kvs_[r].first == key) {
+
+  if (r < num_keys_ && r >= 0 && key_cmp(key, kvs_[r].first) == 0) {
     exist = true;
   }
   return {exist, r};
@@ -81,6 +83,9 @@ inline void LeafNode::read(Page *p) {
   data += sizeof(int);
   std::memcpy(&parent_, data, sizeof(PageId));
   data += sizeof(PageId);
+  std::memcpy(&next_, data, sizeof next_);
+  data += sizeof next_;
+
   for (int i = 0; i < num_keys_; ++i) {
     Element item;
     std::memcpy(&item.key_size, data, sizeof(int));
@@ -111,6 +116,9 @@ inline void LeafNode::write(Page *p) {
   data += sizeof(int);
   std::memcpy(data, &parent_, sizeof(PageId));
   data += sizeof(PageId);
+  std::memcpy(data, &next_, sizeof next_);
+  data += sizeof next_;
+
   for (int i = 0; i < num_keys_; ++i) {
     std::memcpy(data, &items_[i].key_size, sizeof(int));
     data += sizeof(int);

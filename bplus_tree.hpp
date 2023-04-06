@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <memory>
 #include <string_view>
@@ -15,14 +16,23 @@ using value_type = bytes;
 
 // @brief get key at index
 inline int key_cmp(const key_type &left, const key_type &right) {
-  const char *l_d = left.data(), *r_d = right.data();
-  int res = strncmp(l_d, r_d, std::min(left.size(), right.size()));
-  if (res == 0) {
-    if (left.size() < right.size()) {
-      res = -1;
-    } else if (left.size() > right.size()) {
-      res = 1;
-    }
+  // const char *l_d = left.data(), *r_d = right.data();
+
+  // int res = strncmp(l_d, r_d, std::min(left.size(), right.size()));
+  // if (res == 0) {
+  //   if (left.size() < right.size()) {
+  //     res = -1;
+  //   } else if (left.size() > right.size()) {
+  //     res = 1;
+  //   }
+  // }
+  int res = -1;
+  if (left > right) {
+    res = 1;
+  } else if (left == right) {
+    res = 0;
+  } else {
+    res = -1;
   }
   return res;
 }
@@ -82,6 +92,19 @@ public:
   void set_parent(PageId parent) { parent_ = parent; }
   PageId parent() const { return parent_; }
 
+  void print() {
+    std::cout << "{ InternalNode: " << p->id << std::endl;
+    std::cout << "num_keys: " << num_keys_ << std::endl;
+    std::cout << "parent: " << parent_ << std::endl;
+    std::cout << "items: {" << std::endl;
+    for (auto i = 0; i < items_.size(); ++i) {
+      std::string_view k = std::string_view{keys_[i].data(), keys_[i].size()};
+      std::cout << "  { key: " << k << ", child: " << items_[i].child << " }";
+    }
+    std::cout << "}\n";
+    std::cout << "}" << std::endl;
+  }
+
 private:
   size_t meta_size() const {
     return Page::offset() + sizeof num_keys_ + sizeof parent_;
@@ -136,15 +159,36 @@ public:
   size_t size() const { return items_.size(); }
   key_type key(int idx) { return kvs_[idx].first; }
 
+  PageId next() const { return next_; }
+  void set_next(PageId next) { next_ = next; }
+
+  void print() {
+    std::cout << "{ LeafNode: " << p->id << " parent : " << parent_
+              << std::endl;
+    for (auto i = 0; i < kvs_.size(); ++i) {
+      std::string_view k =
+          std::string_view{kvs_[i].first.data(), kvs_[i].first.size()};
+
+      std::string_view v =
+          std::string_view{kvs_[i].second.data(), kvs_[i].second.size()};
+      std::cout << "kv : [" << k << "," << v << "] ";
+    }
+    std::cout << "}" << std::endl;
+  }
+
 private:
   size_t meta_size() const {
-    return Page::offset() + sizeof num_keys_ + sizeof parent_;
+    return Page::offset() + sizeof num_keys_ + sizeof parent_ + sizeof next_;
   }
 
 private:
   Page *p = nullptr;
+
+  // store
   int num_keys_ = 0;
   PageId parent_ = INVALID_PAGE_ID;
+  PageId next_ = INVALID_PAGE_ID;
+
   std::vector<Element> items_;
   std::vector<std::pair<bytes, bytes>> kvs_;
 };
@@ -176,6 +220,8 @@ public:
 
   bool insert(key_type key, value_type val);
   bool search(const key_type &key, value_type &val);
+
+  void print();
 
 private:
   Page *find_leaf(const key_type &key);

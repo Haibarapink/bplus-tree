@@ -91,6 +91,15 @@ inline bool BPlusTree::insert(key_type key, value_type val) {
   auto new_leaf_node = LeafNode();
   new_leaf_node.set_parent(leaf_node.parent());
   leaf_node.move_half_to(new_leaf_node);
+
+  // leaf_node --> new_leaf_node --> old_next_id
+  auto old_next_id =
+      (leaf_node.next() == 0 || leaf_node.next() == INVALID_PAGE_ID)
+          ? INVALID_PAGE_ID
+          : leaf_node.next();
+  leaf_node.set_next(new_page->id);
+  new_leaf_node.set_next(old_next_id);
+
   LOG_DEBUG << "move half to new leaf page " << new_page->id;
 
   size_t left_id = p->id, right_id = new_page->id;
@@ -103,6 +112,13 @@ inline bool BPlusTree::insert(key_type key, value_type val) {
 
   LOG_DEBUG << "insert parent " << leaf_node.parent() << " left " << left_id
             << " right " << right_id;
+
+  // DEBUG
+  if (new_page->id == 57) {
+    std::cout << "insert parent " << leaf_node.parent() << " left " << left_id
+              << " right " << right_id << std::endl;
+  }
+
   return insert_parent(leaf_node.parent(), p->id, new_page->id,
                        new_leaf_node.key(0));
 }
@@ -118,12 +134,9 @@ inline bool BPlusTree::insert_parent(PageId parent, PageId left, PageId right,
   auto page = buffer_pool_.fetch(parent);
   assert(page);
   auto node = InternalNode();
-  if (page->page_type == kLeafPageType) {
-    LOG_DEBUG << "here";
-    auto page2 = buffer_pool_.fetch(parent);
-  }
   node.read(page);
   node.insert(std::move(key), right);
+
   if (node.less_than(PAGE_SIZE)) {
     node.write(page);
     buffer_pool_.unpin(page->id, true);
@@ -142,11 +155,16 @@ inline bool BPlusTree::insert_parent(PageId parent, PageId left, PageId right,
   new_node.set_parent(node.parent());
   node.move_half_to(new_node);
   LOG_DEBUG << "move half to new internal page " << new_page->id;
+
   // set parent
   for (auto i = 0; i < node.size(); ++i) {
     auto child_id = node.item(i).child;
     assert(child_id != INVALID_PAGE_ID);
     set_parent(child_id, new_page->id);
+    if (child_id == 57) {
+      // DEBUG
+      LOG_DEBUG << "ASD";
+    }
     LOG_DEBUG << "set parent " << page->id << " to child " << child_id;
   }
 

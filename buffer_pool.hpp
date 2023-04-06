@@ -21,7 +21,7 @@ constexpr int kLeafPageType = 2;
 // defines the page id type and the invalid page id
 using PageId = long;
 constexpr PageId INVALID_PAGE_ID = -1;
-constexpr size_t PAGE_SIZE = 4096;
+constexpr size_t PAGE_SIZE = 1024;
 
 class DiskManager {
 public:

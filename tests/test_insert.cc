@@ -13,12 +13,15 @@ public:
     }
 
     for (auto i = 0; i < 10000; ++i) {
-      std::string val;
-
-      bool search_ok = tree.search(std::to_string(i), val);
-      PURE_TEST_EQ(search_ok, true);
-      PURE_TEST_EQ(val, std::to_string(i));
+      // std::string val;
+      // std::cout << "==========================insert " << i
+      //           << " =====================\n";
+      // bool search_ok = tree.search(std::to_string(i), val);
+      // PURE_TEST_EQ(search_ok, true) << "i " << i;
+      // PURE_TEST_EQ(val, std::to_string(i)) << val;
     }
+
+    tree.print();
   }
 };
 

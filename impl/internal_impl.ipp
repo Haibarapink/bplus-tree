@@ -1,5 +1,6 @@
 #pragma once
 #include "../bplus_tree.hpp"
+#include <cassert>
 
 // find the first key that is greater than or equal to the argument key
 inline int InternalNode::find_idx(const key_type &key) {
@@ -43,7 +44,7 @@ inline PageId InternalNode::child(const key_type &key) {
   // key is greater than all keys, maybe it is at the end,
   // then if key is not equal to keys_[idx], idx--, because the key of
   // keys_[idx] is greater than the argument key
-  if (idx == num_keys_ || keys_[idx] != key)
+  if (idx == num_keys_ || key_cmp(key, keys_[idx]) != 0)
     idx--;
   return items_[idx].child;
 }
