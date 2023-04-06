@@ -12,6 +12,7 @@
 #include <variant>
 #include <vector>
 
+#include "bplus_tree.hpp"
 #include "logger.hpp"
 #include "replacer.hpp"
 
@@ -202,6 +203,7 @@ public:
 template <ReplacerTraits<size_t> ReplacerType> class DefaultBufferPool {
 public:
   friend class BufferPoolTest;
+  friend class BPlusTreeTest;
 
   using PagePtr = std::unique_ptr<Page>;
 
@@ -360,6 +362,7 @@ public:
 
   void flush(PageId page_id) {
     assert(open_);
+
     auto it = page_map_.find(page_id);
     if (it != page_map_.end()) {
       assert(page_id == it->second->id);

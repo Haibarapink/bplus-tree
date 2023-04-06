@@ -13,15 +13,28 @@ public:
     }
 
     for (auto i = 0; i < 10000; ++i) {
-      // std::string val;
-      // std::cout << "==========================insert " << i
-      //           << " =====================\n";
-      // bool search_ok = tree.search(std::to_string(i), val);
-      // PURE_TEST_EQ(search_ok, true) << "i " << i;
-      // PURE_TEST_EQ(val, std::to_string(i)) << val;
+      std::string val;
+
+      bool search_ok = tree.search(std::to_string(i), val);
+      PURE_TEST_EQ(search_ok, true) << "i " << i;
+      PURE_TEST_EQ(val, std::to_string(i)) << val;
+    }
+    remove("test");
+  }
+
+  void check_buffer_pool_clean() {
+    std::string_view db_name{"test"};
+    BPlusTree tree{db_name, 32};
+    for (auto i = 0; i < 10000; ++i) {
+      bool insert_ok = tree.insert(std::to_string(i), std::to_string(i));
+      PURE_TEST_EQ(insert_ok, true);
     }
 
-    tree.print();
+    for (auto &&p : tree.buffer_pool_.pages_) {
+      auto page = p.get();
+      pure_assert(page->pin_count == 0)
+          << "page " << page->id << " pin_count " << page->pin_count;
+    }
   }
 };
 

@@ -113,12 +113,6 @@ inline bool BPlusTree::insert(key_type key, value_type val) {
   LOG_DEBUG << "insert parent " << leaf_node.parent() << " left " << left_id
             << " right " << right_id;
 
-  // DEBUG
-  if (new_page->id == 57) {
-    std::cout << "insert parent " << leaf_node.parent() << " left " << left_id
-              << " right " << right_id << std::endl;
-  }
-
   return insert_parent(leaf_node.parent(), p->id, new_page->id,
                        new_leaf_node.key(0));
 }
@@ -149,6 +143,12 @@ inline bool BPlusTree::insert_parent(PageId parent, PageId left, PageId right,
     buffer_pool_.unpin(page->id, false);
     return false;
   }
+
+  if (page->id == 3) {
+    // fuck you
+    LOG_DEBUG << "";
+  }
+
   new_page->page_type = kInternalPageType;
 
   auto new_node = InternalNode();
@@ -157,14 +157,10 @@ inline bool BPlusTree::insert_parent(PageId parent, PageId left, PageId right,
   LOG_DEBUG << "move half to new internal page " << new_page->id;
 
   // set parent
-  for (auto i = 0; i < node.size(); ++i) {
-    auto child_id = node.item(i).child;
+  for (auto i = 0; i < new_node.size(); ++i) {
+    auto child_id = new_node.item(i).child;
     assert(child_id != INVALID_PAGE_ID);
     set_parent(child_id, new_page->id);
-    if (child_id == 57) {
-      // DEBUG
-      LOG_DEBUG << "ASD";
-    }
     LOG_DEBUG << "set parent " << page->id << " to child " << child_id;
   }
 

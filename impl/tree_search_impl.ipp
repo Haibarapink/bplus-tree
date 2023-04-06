@@ -10,7 +10,7 @@ inline Page *BPlusTree::find_leaf(const key_type &key) {
     internal_node.read(p);
     page_id = internal_node.child(key);
 
-    internal_node.print();
+    // internal_node.print();
 
     p = buffer_pool_.fetch(page_id);
   }

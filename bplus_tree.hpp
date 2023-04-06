@@ -1,6 +1,7 @@
 #pragma once
 #include "buffer_pool.hpp"
 #include "logger.hpp"
+#include "replacer.hpp"
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
