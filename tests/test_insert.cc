@@ -35,6 +35,7 @@ public:
       pure_assert(page->pin_count == 0)
           << "page " << page->id << " pin_count " << page->pin_count;
     }
+    remove("test");
   }
 };
 
@@ -43,8 +44,14 @@ void make_test() {
   test.make_test();
 }
 
+void check_buffer_pool_clean() {
+  BPlusTreeTest test;
+  test.check_buffer_pool_clean();
+}
+
 int main(int argc, char **) {
   PURE_TEST_PREPARE();
   PURE_TEST_CASE(make_test);
+  PURE_TEST_CASE(check_buffer_pool_clean);
   PURE_TEST_RUN();
 }

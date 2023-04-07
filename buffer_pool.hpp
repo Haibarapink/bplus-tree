@@ -12,7 +12,6 @@
 #include <variant>
 #include <vector>
 
-#include "bplus_tree.hpp"
 #include "logger.hpp"
 #include "replacer.hpp"
 
@@ -202,6 +201,7 @@ public:
 
 template <ReplacerTraits<size_t> ReplacerType> class DefaultBufferPool {
 public:
+  friend class BPlusTree;
   friend class BufferPoolTest;
   friend class BPlusTreeTest;
 
@@ -357,6 +357,8 @@ public:
         assert(page_index_.find(page_id) != page_index_.end());
         replacer_.put(page_index_[page_id]);
       }
+    } else {
+      assert(false);
     }
   }
 

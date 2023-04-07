@@ -209,7 +209,11 @@ public:
   }
 
   template <typename K, typename V> bool insert(const K &key, const V &val) {
-    return insert(bytes(key.begin(), key.end()), bytes(val.begin(), val.end()));
+    bool ok = insert(bytes(key.begin(), key.end()), bytes(val.begin(), val.end()));
+    for (auto& i : buffer_pool_.pages_) {
+      assert(i->pin_count == 0);
+    }
+    return ok;
   }
 
   template <typename K, typename V> bool search(const K &key, V &val) {

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../bplus_tree.hpp"
+//#include "../bplus_tree.hpp"
 
 inline Page *BPlusTree::find_leaf(const key_type &key) {
   PageId page_id = root_;
@@ -8,10 +8,9 @@ inline Page *BPlusTree::find_leaf(const key_type &key) {
   while (p->page_type == kInternalPageType) {
     auto internal_node = InternalNode();
     internal_node.read(p);
+    buffer_pool_.unpin(p->id);
     page_id = internal_node.child(key);
-
     // internal_node.print();
-
     p = buffer_pool_.fetch(page_id);
   }
   return p;
