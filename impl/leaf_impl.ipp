@@ -61,12 +61,13 @@ inline void LeafNode::insert(key_type key, value_type val) {
   ++num_keys_;
 }
 
-inline void LeafNode::remove(const key_type &key) {
+inline bool LeafNode::remove(const key_type &key) {
   auto idx = find_idx(key);
   if (idx == num_keys_ || kvs_[idx].first != key) {
-    return;
+    return false;
   }
   remove(idx);
+  return true;
 }
 
 inline void LeafNode::remove(int idx) {

@@ -17,16 +17,6 @@ using value_type = bytes;
 
 // @brief get key at index
 inline int key_cmp(const key_type &left, const key_type &right) {
-  // const char *l_d = left.data(), *r_d = right.data();
-
-  // int res = strncmp(l_d, r_d, std::min(left.size(), right.size()));
-  // if (res == 0) {
-  //   if (left.size() < right.size()) {
-  //     res = -1;
-  //   } else if (left.size() > right.size()) {
-  //     res = 1;
-  //   }
-  // }
   int res = -1;
   if (left > right) {
     res = 1;
@@ -68,7 +58,7 @@ public:
   auto find(const key_type &key) -> std::pair<bool, int>;
   PageId child(const key_type &key);
   void insert(key_type key, PageId child);
-  void remove(const key_type &key);
+  bool remove(const key_type &key);
   void remove(int idx);
   size_t size() const { return items_.size(); }
   // read from page
@@ -79,6 +69,7 @@ public:
 
   const Element &item(size_t idx) { return items_[idx]; }
   const key_type &key(size_t idx) { return keys_[idx]; }
+  
   bool less_than(size_t page_size) const {
     size_t size = sizeof(Element) * items_.size() + meta_size();
     for (auto i = 0; i < items_.size(); ++i) {
@@ -149,7 +140,7 @@ public:
   int find_idx(const key_type &key);
   auto find(const key_type &key) -> std::pair<bool, int>;
   void insert(key_type key, value_type val);
-  void remove(const key_type &key);
+  bool remove(const key_type &key);
   void remove(int idx);
   void read(Page *p);
   void write(Page *p);
@@ -203,9 +194,12 @@ public:
     buffer_pool_.open();
   }
 
-  ~BPlusTree() {
-    buffer_pool_.flush_all();
+  void close() {
     buffer_pool_.close();
+  }
+
+  ~BPlusTree() {
+    close();
   }
 
   template <typename K, typename V> bool insert(const K &key, const V &val) {
@@ -225,6 +219,7 @@ public:
 
   bool insert(key_type key, value_type val);
   bool search(const key_type &key, value_type &val);
+  bool remove(const key_type &key);
 
   void print();
 
@@ -233,6 +228,12 @@ private:
   bool insert_parent(PageId parent, PageId left, PageId right, key_type key);
   bool make_tree(key_type k, value_type v);
   bool make_root(key_type k, PageId left, PageId right);
+  
+  template <typename NodeType>
+  void write_node(NodeType& n, Page* p) {
+    n.write(p);
+    buffer_pool_.unpin(p->id, true);
+  }
 
   bool set_parent(PageId p, PageId parent) {
     auto page = buffer_pool_.fetch(p);
@@ -252,6 +253,11 @@ private:
     }
     buffer_pool_.unpin(p, true);
     return true;
+  }
+private:
+  // combine nodes after removing, the node's size is less than combine_size()
+  size_t coalesce_size() const {
+    return PAGE_SIZE / 4;
   }
 
 private:

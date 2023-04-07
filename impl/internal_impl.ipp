@@ -66,12 +66,13 @@ inline void InternalNode::insert(key_type key, PageId child) {
   ++num_keys_;
 }
 
-inline void InternalNode::remove(const key_type &key) {
+inline bool InternalNode::remove(const key_type &key) {
   int idx = find_idx(key);
   if (idx == num_keys_ || keys_[idx] != key) {
-    return;
+    return false;
   }
   remove(idx);
+  return true;
 }
 
 inline void InternalNode::remove(int idx) {
